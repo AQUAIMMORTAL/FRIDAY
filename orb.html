@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:#000;overflow:hidden;display:flex;align-items:center;justify-content:center;width:100vw;height:100vh;}
+#wrap{position:relative;width:100%;height:100%;}
+video{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:100%;height:100%;object-fit:contain;}
+#glow{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:100%;height:100%;pointer-events:none;transition:opacity 0.3s;}
+</style>
+</head><body>
+<div id="wrap">
+  <video id="vid" autoplay loop muted playsinline>
+    <source src="http://127.0.0.1:18765/Friday.mp4" type="video/mp4">
+  </video>
+<script>
+// Force autoplay as soon as DOM ready
+window.addEventListener('load', () => {
+  const v = document.getElementById('vid');
+  v.muted = true;
+  v.play().catch(()=>{
+    document.addEventListener('click', ()=>v.play(), {once:true});
+  });
+});
+</script>
+  <canvas id="glow"></canvas>
+</div>
+<script>
+const cv=document.getElementById('glow'),ctx=cv.getContext('2d');
+let W,H,cx,cy,R,speakAmp=0,T=0,state='OFFLINE';
+
+function resize(){
+  W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;
+  cx=W/2;cy=H/2;R=Math.min(W,H)*0.44;
+}
+resize();window.addEventListener('resize',resize);
+
+window.setState=(s)=>{state=s;};
+
+let last=0;
+function draw(ts){
+  requestAnimationFrame(draw);
+  const dt=Math.min((ts-last)/1000,0.05);last=ts;T+=dt;
+  const tgt=state==='SPEAKING'?1:0;
+  speakAmp+=(tgt-speakAmp)*0.07;
+
+  ctx.clearRect(0,0,W,H);
+  if(speakAmp<0.01) return;
+
+  // Outer glow bloom
+  const g=ctx.createRadialGradient(cx,cy,R*0.5,cx,cy,R*1.4);
+  g.addColorStop(0,`rgba(255,140,0,0)`);
+  g.addColorStop(0.5,`rgba(255,100,0,${0.15*speakAmp})`);
+  g.addColorStop(0.8,`rgba(255,60,0,${0.25*speakAmp})`);
+  g.addColorStop(1,`rgba(180,30,0,0)`);
+  ctx.fillStyle=g;
+  ctx.beginPath();ctx.arc(cx,cy,R*1.4,0,Math.PI*2);ctx.fill();
+
+  // Pulsing ring
+  const pr=R*(1.02+0.04*Math.sin(T*3));
+  ctx.save();
+  ctx.shadowBlur=30+speakAmp*40;ctx.shadowColor='#ff8800';
+  ctx.strokeStyle=`rgba(255,180,30,${0.7*speakAmp})`;
+  ctx.lineWidth=2+speakAmp*3;
+  ctx.beginPath();ctx.arc(cx,cy,pr,0,Math.PI*2);ctx.stroke();
+  ctx.restore();
+
+  // Expanding pulse rings
+  for(let i=0;i<3;i++){
+    const ph=(T*0.5+i*0.33)%1;
+    const a=(1-ph)*speakAmp*0.5;
+    if(a<0.01) continue;
+    ctx.save();ctx.shadowBlur=20;ctx.shadowColor='#ff7700';
+    ctx.strokeStyle=`rgba(255,140,20,${a})`;
+    ctx.lineWidth=1.5-ph;
+    ctx.beginPath();ctx.arc(cx,cy,R*(1.0+ph*0.6),0,Math.PI*2);ctx.stroke();
+    ctx.restore();
+  }
+}
+requestAnimationFrame(draw);
+</script>
+</body></html>
